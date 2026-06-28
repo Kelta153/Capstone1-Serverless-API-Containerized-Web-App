@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Deploy a Dockerized web application to ECS Fargate
+
+Parameters:
+  ImageURI:
+    Type: String
+    Description: URI of the Docker image in Amazon ECR
+
+Resources:
+  ####################################
+  # ECS Cluster
+  ####################################
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: CapstoneCluster
+
+  ####################################
+  # Security Group
+  ####################################
+
+  WebAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic
+      VpcId: vpc-0fa21e38a5829b0be
+
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ####################################
+  # ECS Task Execution Role
+  ####################################
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+
+        Statement:
+          - Effect: Allow
+
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ####################################
+  # ECS Task Definition
+  ####################################
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+
+    Properties:
+      Family: CapstoneTask
+
+      Cpu: 256
+
+      Memory: 512
+
+      NetworkMode: awsvpc
+
+      RequiresCompatibilities:
+        - FARGATE
+
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+
+      ContainerDefinitions:
+        - Name: webapp-container
+
+          Image: !Ref ImageURI
+
+          Essential: true
+
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+  ####################################
+  # ECS Service
+  ####################################
+
+  ECSService:
+    Type: AWS::ECS::Service
+
+    Properties:
+      Cluster: !Ref ECSCluster
+
+      DesiredCount: 1
+
+      LaunchType: FARGATE
+
+      TaskDefinition: !Ref TaskDefinition
+
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+
+          SecurityGroups:
+            - !Ref WebAppSecurityGroup
+
+          Subnets:
+            - subnet-062c64cbee0bf0e31
+            - subnet-0a7bde076d839e313
+Outputs:
+  ClusterName:
+    Description: ECS Cluster
+    Value: !Ref ECSCluster
+
+  TaskDefinition:
+    Description: ECS Task Definition
+    Value: !Ref TaskDefinition
+
+  ServiceName:
+    Description: ECS Service
+    Value: !Ref ECSService
